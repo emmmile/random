@@ -1,0 +1,12 @@
+
+env = Environment(
+  CCFLAGS = ['-O3', '-pipe', '-ffast-math', '-funroll-loops',
+             '-march=native', '-Wall', '-std=c++11'],
+  LIBS=[],
+  LIBPATH=[],
+  CPPDEFINES=[],
+  LINKFLAGS=['-s']
+)
+
+
+env.Program( "test", ['test.cpp'] )

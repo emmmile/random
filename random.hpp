@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <math.h>
 
-#define USE_BOOST		1
+#define USE_BOOST		0
 
 #if USE_BOOST
 #include <boost/random.hpp>
@@ -27,6 +27,8 @@ private:
     return generator() & RAND_MAX;
   }
 #else
+	// Mersenne xorshf generator
+	// http://stackoverflow.com/questions/1640258/need-a-fast-random-generator-for-c
   uint32_t x, y, z, w;
 
   inline int32_t gen ( ) {
