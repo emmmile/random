@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <math.h>
+#include <stdlib.h>
 
 #define USE_BOOST		0
 
