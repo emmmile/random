@@ -10,11 +10,11 @@ const int stop = 100000000;
 // http://gcc.gnu.org/ml/gcc-patches/2012-08/msg01979.html
 
 int main ( ) {
-	Random gen;
-	double val = 0.0;
-	for ( int i = 0; i < stop; ++i ) {
-		val += gen.real();
-	}
+    Random gen;
+    double val = 0.0;
+    for ( int i = 0; i < stop; ++i ) {
+        val += gen.real();
+    }
 
 //	double val = 0.0;
 //	default_random_engine eng( 0 );
