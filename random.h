@@ -5,89 +5,99 @@
 #include <math.h>
 #include <stdlib.h>
 
-#define USE_BOOST		0
+#define USE_CPLUSPLUS_11 1
 
-#if USE_BOOST
-#include <boost/random.hpp>
+#ifndef USE_CPLUSPLUS_11
+#define USE_CPLUSPLUS_11		(__cplusplus > 0)
 #endif
 
-// RAND_MAX on windows is 0x7FFF
-#ifdef _WIN32
-#undef RAND_MAX
-#define RAND_MAX 0x7FFFFFFF
-#endif
-
-class Random {
-private:
-#if USE_BOOST
-    // the best are mt19937, taus88, rand48 (in order of goodness->slowness)
-    typedef boost::mt19937 random_generator;
-    random_generator generator;
-
-    inline int32_t gen ( ) {
-        return generator() & RAND_MAX;
-    }
+#if USE_CPLUSPLUS_11
+#include <random>
+using namespace std;
 #else
+struct xorshf {
+    typedef uint32_t result_type;
+
     // Mersenne xorshf generator
     // http://stackoverflow.com/questions/1640258/need-a-fast-random-generator-for-c
-    uint32_t x, y, z, w;
+    result_type x, y, z, w;
 
-    inline int32_t gen ( ) {
-        uint32_t t;
-
-        t = x ^ (x << 11);
-        x = y; y = z; z = w;
-        return ( w = w ^ (w >> 19) ^ (t ^ (t >> 8)) ) & RAND_MAX;
-    }
-#endif
-public:
-    Random ( uint32_t seed = 123456789 ) {
-#if USE_BOOST
-        generator.seed( seed );
-#else
+    xorshf ( result_type seed = 123456789 ) {
         x = seed;
         y = 362436069;
         z = 521288629;
         w = 88675123;
-#endif
     }
 
-    // get uniformly an integer in [0,RAND_MAX)
-    int32_t integer ( ) {
+    inline result_type operator ()( ) {
+        result_type t;
+
+        t = x ^ (x << 11);
+        x = y; y = z; z = w;
+        return ( w = w ^ (w >> 19) ^ (t ^ (t >> 8)) );
+    }
+
+    inline void seed ( result_type seed = 123456789 ) {
+        x = seed;
+    }
+
+    inline static constexpr result_type min ( ) {
+        return 0;
+    }
+
+    inline static constexpr result_type max ( ) {
+        return 0xFFFFFFFF;
+    }
+};
+#endif
+
+
+
+template<class G>
+class RandomBase {
+public:
+    typedef typename G::result_type result_type;
+
+    RandomBase ( result_type seed = 123456789 ) :
+        generator( seed ) {
+    }
+
+    // get uniformly an integer in [0,max())
+    result_type integer ( ) {
         return gen();
     }
 
     // get uniformly a real in [0,1)
     double real ( ) {
-        return gen() / (double) RAND_MAX;
+        return gen() / (double) G::max();
     }
 
     // get uniformly a real in (-1,1)
     double realnegative ( ) {
-        return ( gen() << 1 ) / (double) RAND_MAX;
+        return ( signed(gen()) << 1 ) / (double) G::max();
     }
 
     // get uniformly a real in [0,2)
     double real2 ( ) {
-        return gen() / RAND_MAX * 2.0;
+        return gen() / G::max() * 2.0;
     }
 
     // get uniformly a real in (-2,2)
     double real2negative ( ) {
-        return ( gen() << 1 ) / RAND_MAX * 2.0;
+        return ( signed(gen()) << 1 ) / G::max() * 2.0;
     }
 
-    int32_t operator() ( int32_t n ) {
+    result_type operator() ( result_type n = max() ) {
         return gen() % n;
     }
 
     // change the seed
-    void seed ( uint32_t seed ) {
-#if USE_BOOST
+    void seed ( result_type seed ) {
         generator.seed( seed );
-#else
-        x = seed;
-#endif
+    }
+
+    static constexpr result_type max ( ) {
+        return G::max();
     }
 
     // get uniformly a real in the unit disk
@@ -154,7 +164,22 @@ public:
         y = y * factor;
     }
 
+private:
+    G generator;
+
+    inline result_type gen ( ) {
+        static_assert( G::min() == 0, "RandomBase requires a generator with ::min() = 0" );
+
+        return generator() & G::max();
+    }
 };
+
+
+#if USE_CPLUSPLUS_11
+typedef RandomBase<mt19937> Random;
+#else
+typedef RandomBase<xorshf>  Random;
+#endif
 
 
 #endif // RANDOM_H
