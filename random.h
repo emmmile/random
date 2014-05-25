@@ -1,17 +1,12 @@
-#ifndef RANDOM_HPP
-#define RANDOM_HPP
+#ifndef RANDOM_H
+#define RANDOM_H
 
-#include <stdint.h>
-#include <math.h>
-#include <stdlib.h>
+#include <cmath>
+#include <cstdint>
+#include <cstdlib>
+#include <limits>
 #include <random>
 using namespace std;
-
-#define USE_CPLUSPLUS_11 1
-
-#ifndef USE_CPLUSPLUS_11
-#define USE_CPLUSPLUS_11		(__cplusplus > 0)
-#endif
 
 struct xorshf {
     typedef uint32_t result_type;
@@ -35,6 +30,11 @@ struct xorshf {
         return ( w = w ^ (w >> 19) ^ (t ^ (t >> 8)) );
     }
 
+    void discard( unsigned long long z ) {
+        for ( unsigned long long i = 0; i < z; ++i )
+            this->operator()();
+    }
+
     inline void seed ( result_type seed = 123456789 ) {
         x = seed;
     }
@@ -49,60 +49,111 @@ struct xorshf {
 };
 
 
+// http://en.wikipedia.org/wiki/Xorshift
+struct xorshf64 {
+    typedef uint64_t result_type;
 
-template<class G, class F = double>
+    result_type s[16];
+    int p;
+
+    inline result_type operator ()( ) {
+        result_type s0 = s[p];
+        result_type s1 = s[p = (p + 1) & 15];
+        s1 ^= s1 << 31; // a
+        s1 ^= s1 >> 11; // b
+        s0 ^= s0 >> 30; // c
+        return (s[p] = s0 ^ s1) * 1181783497276652981LL;
+    }
+
+    xorshf64 ( result_type seed = 123456789 ) {
+        p = seed & 15;
+        s[0] = seed;
+        discard( seed & 255 );
+    }
+
+    //result_type s[2];
+    /*inline result_type operator ()( ) {
+        result_type s1 = s[0];
+        const result_type s0 = s[1];
+        s[0] = s0;
+        s1 ^= s1 << 23;
+        return (s[1] = (s1 ^ s0 ^ (s1 >> 17) ^ (s0 >> 26))) + s0;
+    }*/
+
+    void discard( unsigned long long z ) {
+        for ( unsigned long long i = 0; i < z; ++i )
+            this->operator()();
+    }
+
+    inline void seed ( result_type seed = 123456789 ) {
+        s[0] = seed;
+    }
+
+    inline static constexpr result_type min ( ) {
+        return 0;
+    }
+
+    inline static constexpr result_type max ( ) {
+        return numeric_limits<result_type>::max();
+    }
+};
+
+
+
+template<class Generator, class RealType = double>
 class RandomBase {
 public:
-    typedef typename G::result_type integral_type;
-    typedef F float_type;
+    typedef typename Generator::result_type IntegralType;
 
-    RandomBase ( integral_type seed = 123456789 ) :
+    RandomBase ( IntegralType seed = 123456789 ) :
         generator( seed ) {
     }
 
     // get uniformly an integer in [0,max())
-    integral_type integer ( ) {
+    IntegralType integer ( ) {
         return gen();
     }
 
     // get uniformly a real in [0,1)
-    float_type real ( ) {
-        return gen() / (float_type) G::max();
+    RealType real ( ) {
+        return gen() / (RealType) Generator::max();
     }
 
     // get uniformly a real in (-1,1)
-    float_type realnegative ( ) {
-        return ( signed(gen()) << 1 ) / (float_type) G::max();
+    RealType realnegative ( ) {
+        return ( signed(gen()) << 1 ) / (RealType) Generator::max();
     }
 
     // get uniformly a real in [0,2)
-    float_type real2 ( ) {
-        return gen() / G::max() * 2.0;
+    RealType real2 ( ) {
+        return gen() / Generator::max() * 2.0;
     }
 
     // get uniformly a real in (-2,2)
-    float_type real2negative ( ) {
-        return ( signed(gen()) << 1 ) / G::max() * 2.0;
+    RealType real2negative ( ) {
+        return ( signed(gen()) << 1 ) / Generator::max() * 2.0;
     }
 
-    integral_type operator() ( integral_type n = max() ) {
+    IntegralType operator() ( IntegralType n = max() ) {
         return gen() % n;
     }
 
-    // change the seed
-    void seed ( integral_type seed ) {
+    // change the seed of the underlying generator
+    void seed ( IntegralType seed ) {
         generator.seed( seed );
     }
 
-    static constexpr integral_type max ( ) {
-        return G::max();
+    static constexpr IntegralType max ( ) {
+        return Generator::max();
     }
 
+    // Som useful 2-dimensional routines
+
     // get uniformly a real in the unit disk
-    float_type realdisk ( float_type& x, float_type& y ) {
+    RealType realdisk ( RealType& x, RealType& y ) {
         // this is usually a lot faster than using sin, cos and sqrt (below),
         // since the probability that a point is accepted is high: pi/4
-        float_type s;
+        RealType s;
         while ( 1 ) {
             x = realnegative();
             y = realnegative();
@@ -122,10 +173,10 @@ public:
     }
 
     // generate a two dimension random point normally distributed (mean = 0, variance = 1)
-    void gaussian ( float_type& x, float_type& y ) {
+    void gaussian ( RealType& x, RealType& y ) {
         // this is the exact one (Marsaglia polar method applied to Box-Muller transform)
-        float_type s = realdisk( x, y );
-        float_type factor = sqrt( -2.0 * log( s ) / s );
+        RealType s = realdisk( x, y );
+        RealType factor = sqrt( -2.0 * log( s ) / s );
         x = x * factor;
         y = y * factor;
 
@@ -138,46 +189,41 @@ public:
 
     }
 
-    void gaussian ( float_type& x, float_type& y, float_type radius ) {
-        float_type s = realdisk( x, y );
-        float_type factor = sqrt( -2.0 * log( s ) / s ) * radius;
+    void gaussian ( RealType& x, RealType& y, RealType radius ) {
+        RealType s = realdisk( x, y );
+        RealType factor = sqrt( -2.0 * log( s ) / s ) * radius;
         x = x * factor;
         y = y * factor;
     }
 
     // generate a two dimension random point exponentially distributed
-    // (actually this is not really exponential i think but hower is much more
+    // (actually this is not really exponential i think but however is much more
     // dense aroun the origin than the gaussian mutation)
-    void exponential ( float_type& x, float_type& y ) {
-        float_type s = realdisk( x, y );
-        float_type factor = -log( s ) / s;
+    void exponential ( RealType& x, RealType& y ) {
+        RealType s = realdisk( x, y );
+        RealType factor = -log( s ) / s;
         x = x * factor;
         y = y * factor;
     }
 
-    void exponential ( float_type& x, float_type& y, float_type radius ) {
-        float_type s = realdisk( x, y );
-        float_type factor = -log( s ) / s * radius;
+    void exponential ( RealType& x, RealType& y, RealType radius ) {
+        RealType s = realdisk( x, y );
+        RealType factor = -log( s ) / s * radius;
         x = x * factor;
         y = y * factor;
     }
 
 private:
-    G generator;
+    Generator generator;
 
-    inline integral_type gen ( ) {
-        static_assert( G::min() == 0, "RandomBase requires a generator with ::min() = 0" );
+    inline IntegralType gen ( ) {
+        static_assert( Generator::min() == 0, "RandomBase requires a generator with ::min() = 0" );
 
-        return generator() & G::max();
+        return generator() & Generator::max();
     }
 };
 
 
-#if USE_CPLUSPLUS_11
 typedef RandomBase<mt19937> Random;
-#else
-typedef RandomBase<xorshf>  Random;
-#endif
-
 
 #endif // RANDOM_H
