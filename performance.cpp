@@ -8,7 +8,6 @@
 #include "timer.h"
 using namespace std;
 
-const int stop = 100000000;
 
 template<class G>
 void single_run (G& generator, size_t times ) {

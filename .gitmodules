@@ -1,0 +1,3 @@
+[submodule "timer"]
+	path = timer
+	url = https://github.com/emmmile/timer.git
